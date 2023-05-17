@@ -1,6 +1,5 @@
 # Final_Project
 
-Code Documentation
 This is a Python script that uses the Scapy library to capture network traffic and build a graph representation of the network topology. It also displays the network devices and their corresponding IP and MAC addresses.
 
 Required Libraries
