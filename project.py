@@ -38,8 +38,7 @@ for dst_port in port_range:
 
 
 
-
-
+############################## imports ##############################
 
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -49,10 +48,10 @@ from scapy.all import ARP, Ether, srp
 import matplotlib.pyplot as plt
 import math
 
+#####################################################################
 
 
-#import time
-
+########################### Global Variables ###################################
 time_limit = 10
 clients = []
 counter = 0
@@ -62,18 +61,28 @@ node_colors = {}
 edge_widths = {}
 device_traffic = {}
 router_ip = ""
+address = []
+total_traffic = {}
+DeafultGateWay = ""
+
 # Set the minimum and maximum node sizes
 min_node_size = 200
 max_node_size = 1500
 
 
+#####################################################################
+
+
+
+############################## Functions ##############################
+
 # Function to handle the click on the second screen label
 def show_pie_chart():
 
-   # Create a pie chart with device traffic
+   # Create a pie chart with device traffic presenting how much each devices generates compared to the others
     fig, ax = plt.subplots()
     ax.pie(device_traffic.values(), labels=device_traffic.keys(), autopct='%1.1f%%', startangle=90)
-    ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle
+    ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle and not some other shape
     ax.set_title("Device Traffic")
 
     # Create a new window to display the pie chart
@@ -99,21 +108,65 @@ def calculate_node_sizes(traffic_values, min_size, max_size):
 
 
 def get_node_color(traffic):
-    base_color = "#0078C8"  # Light blue base color in hexadecimal (RGB: 0, 120, 200)
+    base_color = "#0078C8"  # the base color i choose in hexadecimal -> equivelant in RGB(RGB: 0, 120, 200)
 
-    # Calculate the maximum traffic value among the devices in your network
+    # Calculate the maximum traffic value among the devices in your network to be used to calculate the relative color of a node
     max_traffic = max(total_traffic[ip] for ip in address)
 
-    # Normalize traffic to range [0, 1]
+    # Normalize traffic to range of zero and one
     normalized_traffic = traffic / max_traffic
 
-    # Calculate the red component based on the normalized traffic value
-    red = int((1 - normalized_traffic) * 120)  # Adjust red component
+    base_red = int(base_color[1:3], 16)
+    base_green = int(base_color[3:5], 16)
+    base_blue = int(base_color[5:7], 16)
 
-    # Combine the red, green, and blue components into a hexadecimal color code
-    color_code = "#{:02X}0078".format(red)
+    # Calculate the red,green and blue component's based on the normalized traffic value calculated above
+    red = int(base_red * (1 - normalized_traffic))
+    green = int(base_green * (1 - normalized_traffic))
+    blue = int(base_blue + (255 - base_blue) * normalized_traffic)
+
+    # Combine the red, green, and blue components into a hexadecimal color code to be returned by the function
+    color_code = "#{:02X}{:02X}{:02X}".format(red, green, blue)
+
+    print("the red component is:   " + color_code)
 
     return color_code
+
+
+def capture_traffic(pkt):
+    if IP in pkt:
+        ip = pkt[IP].src
+        if ip not in total_traffic:
+            total_traffic[ip] = 0
+        total_traffic[ip] += pkt[IP].len
+
+
+
+
+def ARP_Request():
+    target_ip = "192.168.0.0/24"
+    # the subnet that we broadcast too the ranges can be 192.168.0.0\16 10.0.0.0\16 and 172.16.0.0\16
+
+    # create ARP packet to be sent
+    arp = ARP(pdst = target_ip)
+
+
+    # create the Ether broadcast packet
+    # ff:ff:ff:ff:ff:ff MAC address indicates broadcasting to all devices
+
+
+    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+    # stack them
+    packet = ether/arp
+    #we limit the timout for 3 seconds to shorten the runtime higher timeout might be needed for networks with lots of traffic
+    result_Of_Arp = srp(packet, timeout=3, verbose=0)[0]
+
+    
+    return result_Of_Arp
+
+
+
+#####################################################################
 
 # Create the main window
 window = tk.Tk()
@@ -160,45 +213,15 @@ second_screen_label.pack(side=tk.LEFT, padx=10, pady=5)
 # Bind the show_pie_chart function to the click event of the second screen label
 second_screen_label.bind("<Button-1>", lambda event: show_pie_chart())
 
+G = nx.Graph()
 
-
-address = []
-
-total_traffic = {}
-
-def capture_traffic(pkt):
-    if IP in pkt:
-        ip = pkt[IP].src
-        if ip not in total_traffic:
-            total_traffic[ip] = 0
-        total_traffic[ip] += pkt[IP].len
 
 # Set up network interface in promiscuous mode to capture all packets
 conf.promiscuous = True
 
-G = nx.Graph()
-#G.add_node("The Internet")
-
-DeafultGateWay = ""
-
-target_ip = "192.168.0.0/24"
-# IP Address for the destination
-
-# create ARP packet
-arp = ARP(pdst=target_ip)
 
 
-# create the Ether broadcast packet
-# ff:ff:ff:ff:ff:ff MAC address indicates broadcasting
-
-
-ether = Ether(dst="ff:ff:ff:ff:ff:ff")
-# stack them
-packet = ether/arp
-
-#print(packet)
-
-result = srp(packet, timeout=30, verbose=0)[0]
+result = ARP_Request()
 
 print(result)
 
