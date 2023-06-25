@@ -168,17 +168,16 @@ def ARP_Request():
 
 #####################################################################
 
+
+################### Main Window ######################################
+
 # Create the main window
 window = tk.Tk()
 window.title("MyNet")
 
-# Create a frame at the top for the bar
+# Create a frame at the top for the bar that will contain extra functionality
 bar_frame = tk.Frame(window)
 bar_frame.pack(fill=tk.X)
-
-# Create a frame to contain the graph and pie chart
-content_frame = tk.Frame(window)
-content_frame.pack(fill=tk.BOTH, expand=True)
 
 # Detect the screen size
 screen_width = window.winfo_screenwidth()
@@ -191,7 +190,11 @@ window_height = int(screen_height * 0.8)
 # Set the window geometry
 window.geometry(f"{window_width}x{window_height}")
 
+#####################################################################
 
+# Create a frame to contain the graph and pie chart
+content_frame = tk.Frame(window)
+content_frame.pack(fill=tk.BOTH, expand=True)
 
 
 # Create a figure and axes for the graph
@@ -213,30 +216,31 @@ second_screen_label.pack(side=tk.LEFT, padx=10, pady=5)
 # Bind the show_pie_chart function to the click event of the second screen label
 second_screen_label.bind("<Button-1>", lambda event: show_pie_chart())
 
-G = nx.Graph()
-
 
 # Set up network interface in promiscuous mode to capture all packets
 conf.promiscuous = True
-
 
 
 result = ARP_Request()
 
 print(result)
 
+G = nx.Graph()
 
 # a list of clients, we will fill this in the upcoming loop
-
-
 for sent, received in result:
     # for each response, append ip and mac address to `clients` list
     clients.append({'ip': received.psrc, 'mac': received.hwsrc})
     if (counter == 0):
+        #The first detected device in most scenario's would be the router or the gateway
+        #Therefore the first device detected is treated as the "Router" \ "DeafultGateWay in this code"
+        #This is not the scenario in 100% of the time
         DeafultGateWay = received.psrc
         #address.append("The Internet")
         address.append(received.psrc)
         counter = counter + 1
+        total_traffic[received.psrc] = 0
+
 
 
     G.add_node(received.psrc)
@@ -246,10 +250,12 @@ for sent, received in result:
         total_traffic[received.psrc] = 0
     
     #Get_Trafic(received.psrc)
+
+
 interface = "Wi-Fi 3"
 
 sniff(iface=interface, prn=capture_traffic, timeout=time_limit)
-
+############################### Assembeling the graph ################################################
 for ip in address:
     #print(f"Total traffic for {ip} in the last {time_limit} seconds: {total_traffic[ip]/1024} Mega bytes")
     device_traffic[ip] = total_traffic[ip]/1024
@@ -263,6 +269,8 @@ for ip in address:
         #node_colors[ip] = 'green'
         edge_widths[(DeafultGateWay,ip)] = 2
         node_colors[ip] = get_node_color(total_traffic[ip])
+
+#######################################################################################################
 
 ############################################### WIP ###########################################################
 """
@@ -292,11 +300,15 @@ print(G.nodes())
 
 print(total_traffic)
 
-# Assign node labels
+######################## Assemble labels for the detected devices ########################
+
+# Assign node labels for the nodes that been deteced above
 labels = {node: node for node in G.nodes()}
 traffic_labels = {node: f"Traffic: {total_traffic[node] / 1024} MB" for node in G.nodes()}
 nx.set_node_attributes(G, labels, "label")
 nx.set_node_attributes(G, traffic_labels, "traffic_label")
+
+##########################################################################################
 
 # Create figure and axes
 fig, ax = plt.subplots(figsize=(8, 8))
@@ -329,10 +341,8 @@ ax.axis("off")
 fig.set_facecolor("white")
 
 # Show the graph
-
 #plt.axis('off')
 #plt.show()
-
 
 # Draw the graph on the canvas
 canvas = FigureCanvasTkAgg(fig, master=content_frame)
